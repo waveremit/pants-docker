@@ -36,7 +36,7 @@ docker(
     workdir="root",
     dependencies=[
         "test_docker",
-        "//:gunicorn",
-        "//:gevent",
+        "//:reqs#gunicorn",
+        "//:reqs#gevent",
     ],
 )

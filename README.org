@@ -3,16 +3,20 @@
 #+EMAIL:       engineering@sendwave.com
 #+DESCRIPTION: Docker Plugin Documentation
 
-* Version 1.0.1
+* Version 1.1.0
 
 This package contains an implementation of a plugin for the [[https://www.pantsbuild.org/][pants
 build system]] to build docker images from pants build targets.
 
 * Requirements
 
-This plugin supports pantsbuild 2.9 and requires python 3.7 or python
+This plugin supports pantsbuild 2.13 and requires python 3.7 or python
 3.8 to be installed, as well as transitively any other pants
 dependencies.
+
+Previous versions of the plugin supported older versions of pantsbuild:
+* pants-docker 1.0.x -> pantsbuild 2.9
+* pants-docker 0.1 -> pantsbuild 2.4
 
 * Installation
 
@@ -22,7 +26,7 @@ pants.toml file:
 #+NAME: pants.toml
 #+BEGIN_SRC: toml
 [GLOBAL]
-plugins = ["sendwave-pants-docker~=1.0"]
+plugins = ["sendwave-pants-docker~=1.1"]
 backend_packages = ["sendwave.pants_docker"]
 #+END_SRC
 

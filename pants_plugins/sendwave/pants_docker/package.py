@@ -30,11 +30,11 @@ from typing import Iterable, List, Optional
 
 import sendwave.pants_docker.utils as utils
 from pants.core.goals.package import BuiltPackage, BuiltPackageArtifact
+from pants.core.util_rules.system_binaries import BinaryPathRequest, BinaryPaths
 from pants.engine.environment import Environment, EnvironmentRequest
 from pants.engine.fs import (AddPrefix, CreateDigest, Digest, FileContent,
                              MergeDigests, Snapshot)
-from pants.engine.process import (BinaryPathRequest, BinaryPaths, Process,
-                                  ProcessCacheScope, ProcessResult)
+from pants.engine.process import Process, ProcessCacheScope, ProcessResult
 from pants.engine.rules import Get, MultiGet, collect_rules, rule
 from pants.engine.target import TransitiveTargets, TransitiveTargetsRequest
 from pants.engine.unions import UnionMembership
