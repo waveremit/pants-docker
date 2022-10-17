@@ -1,6 +1,6 @@
 """Configuration for the Sendwave pants-docker plugin."""
 from pants.engine.rules import SubsystemRule
-from pants.option.option_types import BoolOption
+from pants.option.option_types import BoolOption, StrOption
 from pants.option.subsystem import Subsystem
 
 
@@ -22,6 +22,15 @@ class Docker(Subsystem):
         "--report-progress",
         default=False,
         help="If true: the plugin will report output of `docker build`",
+    )
+
+    cache_from = StrOption(
+        "--cache-from",
+        default=None,
+        help=(
+            "Specify a registry that will be used for caching via the "
+            "docker build --cache-from option (requires BuildKit to be installed)"
+        ),
     )
 
 
