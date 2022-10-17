@@ -3,7 +3,7 @@
 #+EMAIL:       engineering@sendwave.com
 #+DESCRIPTION: Docker Plugin Documentation
 
-* Version 1.1.1
+* Version 1.1.2
 
 This package contains an implementation of a plugin for the [[https://www.pantsbuild.org/][pants
 build system]] to build docker images from pants build targets.
@@ -43,6 +43,28 @@ the generated imaage.
 See =$ pants help docker= for information on possible values for the
 docker target.
 
+* Using external layer cache sources
+Images built with this plugin can be configured for
+[[https://docs.docker.com/engine/reference/commandline/build/#specifying-external-cache-sources][external layer cache sources]]
+via the =build_cache= and =buildkit_inline_cache= fields on the
+=docker= target. Note that both of these fields require
+[[https://docs.docker.com/develop/develop-images/build_enhancements/][BuildKit]]
+to be installed.
+
+To enable writing inline layer caches for an image, set the field
+=buildkit_inline_cache=True= on the target. If you would like to use
+the built image as an external cache, tag it after packaging and push
+it to a remote repository using =docker tag= and =docker push=.
+
+To enable reading inline layer caches for an image, including from
+external cache sources, set the field =build_cache=<your-image-cache>=
+on the target. If you're reading a cache from a private registry, you
+will also have to pass your Docker config file into the pants process
+so that pants knows how to authenticate your cache pull request; the
+easiest way to do this is simply to set the =DOCKER_CONFIG= environment
+variable for the pants process, e.g. =DOCKER_CONFIG="$HOME/.docker" ./pants package ...=.
+
+* Developing plugins
 To add support for more targets in subsequent plugins (i.e. to
 plug-into this plugin) add a rule mapping your Target/FieldSet to a
 DockerComponent dataclass. Then add a
@@ -50,6 +72,10 @@ DockerComponent dataclass. Then add a
 the DockerComponent will be copied into the image and the =commands=
 will be executed in the generated DockerFile.
 * ChangeLog
+* 1.1.2
++ Add support for cache_from field to configure remote caches via `docker build --cache-from`
++ Add support for buildkit_inline_cache field to set `--build-arg BUILDKIT_INLINE_CACHE=1`
++ Add support for multiline_pip_install option to `RUN pip install` on multiple lines (one per dependency) or one line for all dependencies
 * 1.1.1
 + Fix too strict python interpreter version to allow any python version 3.8 or greater
 * 1.1.0

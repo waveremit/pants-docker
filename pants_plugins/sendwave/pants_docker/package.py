@@ -30,7 +30,10 @@ from typing import Iterable, List, Optional
 
 import sendwave.pants_docker.utils as utils
 from pants.backend.python.subsystems.setup import PythonSetup
-from pants.backend.python.target_types import PythonRequirementTarget
+from pants.backend.python.target_types import (
+    PythonRequirementsField,
+    PythonRequirementTarget,
+)
 from pants.core.goals.package import BuiltPackage, BuiltPackageArtifact
 from pants.core.util_rules.system_binaries import BinaryPathRequest, BinaryPaths
 from pants.engine.environment import Environment, EnvironmentRequest
@@ -50,7 +53,10 @@ from sendwave.pants_docker.docker_component import (
     DockerComponent,
     DockerComponentFieldSet,
 )
-from sendwave.pants_docker.python_requirement import VirtualEnvRequest
+from sendwave.pants_docker.python_requirement import (
+    PythonRequirements,
+    VirtualEnvRequest,
+)
 from sendwave.pants_docker.subsystem import Docker
 from sendwave.pants_docker.target import DockerPackageFieldSet
 
@@ -80,7 +86,7 @@ def _build_tag_argument_list(
     Takes the name of the build artifact, a list of tags and an
     optional docker registry and formats them as arguments to the
     docker command line program. Adding a "-t" before each formatted
-    "registry/name:tag
+    {registry/}target_name:tag
 
     i.e. ('test_container, ['version]) -> ["-t", "test-container:version"]
 
@@ -89,6 +95,19 @@ def _build_tag_argument_list(
     tags = _build_tags(target_name, tags, registry)
     tags = itertools.chain(*(("-t", tag) for tag in tags))
     return list(tags)
+
+
+def _build_cache_argument_list(
+    cache_from: Optional[str], buildkit_inline_cache: bool
+) -> List[str]:
+    """Support cache-related fields by generating Docker CLI args for
+    caching."""
+    arg_list = []
+    if buildkit_inline_cache:
+        arg_list += ["--build-arg", "BUILDKIT_INLINE_CACHE=1"]
+    if cache_from:
+        arg_list += ["--cache-from", cache_from]
+    return arg_list
 
 
 def _create_dockerfile(
@@ -133,19 +152,18 @@ async def package_into_image(
     docstring for more information)
     """
     target_name = field_set.address.target_name
+    logger.debug("Building Target %s", target_name)
     transitive_targets = await Get(
         TransitiveTargets, TransitiveTargetsRequest([field_set.address])
     )
 
+    # Start by generating commands for the Python dependencies
+    pip_requirement_targets = []
     component_list = []
     created_virtual_env = False
-    logger.debug("Building Target %s", target_name)
-    for field_set_type in union_membership[DockerComponentFieldSet]:
-        for target in transitive_targets.dependencies:
-            if (
-                isinstance(target, PythonRequirementTarget)
-                and not created_virtual_env
-            ):
+    for target in transitive_targets.dependencies:
+        if isinstance(target, PythonRequirementTarget):
+            if not created_virtual_env:
                 # if there are any third party python dependencies
                 # create & activate a virtual env in the image, this
                 # will copy in a constraints file (which will be used
@@ -160,19 +178,35 @@ async def package_into_image(
                 )
                 # we only want one virtual env per image
                 created_virtual_env = True
-            if field_set_type.is_applicable(target):
-                logger.debug(
-                    "Dependent Target %s applies to as component %s",
-                    target.address,
-                    field_set_type.__name__,
-                )
-                component_list.append(
-                    Get(
-                        DockerComponent,
-                        DockerComponentFieldSet,
-                        field_set_type.create(target),
+            for value in target.get(PythonRequirementsField).value:
+                pip_requirement_targets.append(value)
+
+    if pip_requirement_targets:
+        component_list.append(
+            Get(
+                DockerComponent,
+                PythonRequirements(requirements=tuple(pip_requirement_targets)),
+            )
+        )
+
+    for field_set_type in union_membership[DockerComponentFieldSet]:
+        for target in transitive_targets.dependencies:
+            # We already generated commands for the Python dependencies,
+            # so skip them
+            if not (isinstance(target, PythonRequirementTarget)):
+                if field_set_type.is_applicable(target):
+                    logger.debug(
+                        "Dependent Target %s applies to as component %s",
+                        target.address,
+                        field_set_type.__name__,
                     )
-                )
+                    component_list.append(
+                        Get(
+                            DockerComponent,
+                            DockerComponentFieldSet,
+                            field_set_type.create(target),
+                        )
+                    )
 
     components = await MultiGet(*component_list)
 
@@ -204,7 +238,8 @@ async def package_into_image(
     # create docker build context of all merged files & fetch docker
     # connection enviornment variables
     # and the location of the docker process
-    search_path = ["/bin", "/usr/bin", "/usr/local/bin", "$HOME/"]
+    path_env = await Get(Environment, EnvironmentRequest(["PATH"]))
+    search_path = path_env.get("PATH", "").split(":")
     docker_context, docker_env, docker_paths = await MultiGet(
         Get(Digest, MergeDigests([dockerfile, application_digest])),
         Get(Environment, EnvironmentRequest(utils.DOCKER_ENV_VARS)),
@@ -216,6 +251,8 @@ async def package_into_image(
             ),
         ),
     )
+    docker_env_dict = dict(docker_env)
+    docker_env_dict["PATH"] = path_env.get("PATH")
     if not docker_paths.first_path:
         raise ValueError(
             "Unable to locate Docker binary on paths: %s", search_path
@@ -227,16 +264,26 @@ async def package_into_image(
         target_name, field_set.tags.value or [], field_set.registry.value
     )
     # create the image
-    process_args = [process_path, "build"]
+    # We need to enable BuildKit if we plan to read and write to a remote cache
+    cli_command = (
+        ["buildx", "build"]
+        if field_set.cache_from.value or field_set.buildkit_inline_cache.value
+        else ["build"]
+    )
+    process_args = [process_path] + cli_command
     process_args.extend(tag_arguments)
     process_args.append(".")  # use current (sealed) directory as build context
     if docker.options.report_progress:
         process_args.append("--progress")
         process_args.append("plain")
+    process_args += _build_cache_argument_list(
+        field_set.cache_from.value, field_set.buildkit_inline_cache.value
+    )
+    logger.info(f"Build command: {' '.join(process_args)}")
     process_result = await Get(
         ProcessResult,
         Process(
-            env=docker_env,
+            env=docker_env_dict,
             argv=process_args,
             input_digest=docker_context,
             description=f"Creating Docker Image from {target_name}",

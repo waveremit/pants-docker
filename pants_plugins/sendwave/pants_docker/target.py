@@ -8,6 +8,7 @@ from pants.core.goals.package import (
 )
 from pants.engine.target import (
     COMMON_TARGET_FIELDS,
+    BoolField,
     Dependencies,
     DependenciesRequest,
     DescriptionField,
@@ -57,6 +58,26 @@ class Registry(StringField):
     help = "The registry of the resulting docker image"
 
 
+class CacheFrom(StringField):
+    alias = "cache_from"
+    required = False
+    default = None
+    help = (
+        "Specify a registry that will be used for caching via the "
+        "docker build --cache-from option (requires BuildKit to be installed)"
+    )
+
+
+class BuildkitInlineCache(BoolField):
+    alias = "buildkit_inline_cache"
+    required = False
+    default = False
+    help = (
+        "Enables writing an inline layer cache for the image via the docker build --build-arg "
+        "BUILDKIT_INLINE_CACHE=1 parameter (requires BuildKit to be installed)"
+    )
+
+
 class Tags(StringSequenceField):
     alias = "tags"
     default = []
@@ -80,6 +101,8 @@ class DockerPackageFieldSet(pants.core.goals.package.PackageFieldSet):
     image_setup: ImageSetup
     ignore: DockerIgnore
     registry: Registry
+    cache_from: CacheFrom
+    buildkit_inline_cache: BuildkitInlineCache
     tags: Tags
     dependencies: Dependencies
     workdir: WorkDir
@@ -99,6 +122,8 @@ class Docker(Target):
         WorkDir,
         Tags,
         Command,
+        CacheFrom,
+        BuildkitInlineCache,
     )
 
 

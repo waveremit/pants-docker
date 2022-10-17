@@ -24,6 +24,12 @@ class Docker(Subsystem):
         help="If true: the plugin will report output of `docker build`",
     )
 
+    multiline_pip_install = BoolOption(
+        "--multiline-pip-install",
+        default=False,
+        help="If true: the plugin will `pip install` each requirement on its own line",
+    )
+
 
 def rules():
     """Register Docker options as a SubsystemRule."""

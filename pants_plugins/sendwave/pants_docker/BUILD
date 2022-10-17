@@ -13,7 +13,7 @@ python_distribution(
     ],
     provides=setup_py(
         name="sendwave-pants-docker",
-        version="1.1.1",
+        version="1.1.2",
         description="Pants Plugin to automatically generate docker images from pants targets",
         url="https://github.com/waveremit/pants-docker",
         author="Nathan Rosenbloom, Jean Cochrane",
