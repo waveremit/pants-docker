@@ -4,6 +4,3 @@ colors = true
 
 [pytest]
 args = ["-vv"]
-
-[sendwave-docker]
-cache_from = "us-docker.pkg.dev/sendwave-development/sendwave-docker/pants-docker"

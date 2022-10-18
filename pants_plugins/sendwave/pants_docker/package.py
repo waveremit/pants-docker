@@ -57,35 +57,52 @@ from sendwave.pants_docker.target import DockerPackageFieldSet
 logger = logging.getLogger(__name__)
 
 
-def _build_full_target_name(target_name: str, registry: Optional[str]) -> str:
-    """Generate a Docker target name that specifies an optional registry, if one exists."""
-    return f"{registry}/{target_name}" if registry else target_name
-
-
-def _build_tags(target_name: str, tags: List[str]) -> List[str]:
+def _build_tags(
+    target_name: str, tags: List[str], registry: Optional[str]
+) -> List[str]:
     """Build a list of docker tags.
 
     Each tag in the passed in list will be formatted as:
-    target_name:tag in order to tag a docker image
+    {registry/}target_name:tag in order to tag a docker image
     """
-    return [f"{target_name}:{tag}" for tag in tags] + [target_name]
+    tags = [f"{target_name}:{tag}" for tag in tags]
+    tags.append(target_name)
+    if not registry:
+        return tags
+    return [f"{registry}/{tag}" for tag in tags]
 
 
-def _build_tag_argument_list(target_name: str, tags: List[str]) -> List[str]:
+def _build_tag_argument_list(
+    target_name: str, tags: List[str], registry: Optional[str]
+) -> List[str]:
     """Build a list of docker tags and format them as CLI arguments.
 
     Takes the name of the build artifact, a list of tags and an
     optional docker registry and formats them as arguments to the
     docker command line program. Adding a "-t" before each formatted
-    name:tag
+    {registry/}target_name:tag
 
     i.e. ('test_container, ['version]) -> ["-t", "test-container:version"]
 
     If the 'tags' list is empty no tags will be produced
     """
-    tags = _build_tags(target_name, tags)
+    tags = _build_tags(target_name, tags, registry)
     tags = itertools.chain(*(("-t", tag) for tag in tags))
     return list(tags)
+
+
+def _build_cache_argument_list(cache_from: str) -> List[str]:
+    """Support the cache_from field by generating Docker CLI args for
+    caching."""
+    # Create a cache manifest for the new image in addition to setting
+    # the location of the cache image, so that this image can also be used
+    # for caching in the future
+    return [
+        "--build-arg",
+        "BUILDKIT_INLINE_CACHE=1",
+        "--cache-from",
+        cache_from,
+    ]
 
 
 def _create_dockerfile(
@@ -220,16 +237,13 @@ async def package_into_image(
     process_path = docker_paths.first_path.path
     # build an list of arguments of the form ["-t",
     # "registry/name:tag"] to pass to the docker executable
-    full_target_name = _build_full_target_name(
-        target_name, field_set.registry.value
-    )
     tag_arguments = _build_tag_argument_list(
-        full_target_name, field_set.tags.value or []
+        target_name, field_set.tags.value or [], field_set.registry.value
     )
     # create the image
     # We need to enable BuildKit if we plan to read and write to a remote cache
     cli_command = (
-        ["buildx", "build"] if docker.options.cache_from else ["build"]
+        ["buildx", "build"] if field_set.cache_from.value else ["build"]
     )
     process_args = [process_path] + cli_command
     process_args.extend(tag_arguments)
@@ -237,19 +251,8 @@ async def package_into_image(
     if docker.options.report_progress:
         process_args.append("--progress")
         process_args.append("plain")
-    if docker.options.cache_from:
-        registry_separator = (
-            "" if docker.options.cache_from.endswith("/") else "/"
-        )
-        cache_registry = (
-            f"{docker.options.cache_from}{registry_separator}{full_target_name}"
-        )
-        process_args += [
-            "--build-arg",
-            "BUILDKIT_INLINE_CACHE=1",
-            "--cache-from",
-            cache_registry,
-        ]
+    if field_set.cache_from.value:
+        process_args += _build_cache_argument_list(field_set.cache_from.value)
     process_result = await Get(
         ProcessResult,
         Process(

@@ -21,7 +21,6 @@ root_patterns = [
               ]
 [sendwave-docker]
 report_progress = true
-cache_from = "us-docker.pkg.dev/sendwave-development/sendwave-docker/pants-docker"
 
 [python-bootstrap]
 search_path = ["<PYENV>"]

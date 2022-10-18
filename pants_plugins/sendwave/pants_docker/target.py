@@ -57,6 +57,16 @@ class Registry(StringField):
     help = "The registry of the resulting docker image"
 
 
+class CacheFrom(StringField):
+    alias = "cache_from"
+    required = False
+    default = None
+    help = (
+        "Specify a registry that will be used for caching via the "
+        "docker build --cache-from option (requires BuildKit to be installed)"
+    )
+
+
 class Tags(StringSequenceField):
     alias = "tags"
     default = []
@@ -80,6 +90,7 @@ class DockerPackageFieldSet(pants.core.goals.package.PackageFieldSet):
     image_setup: ImageSetup
     ignore: DockerIgnore
     registry: Registry
+    cache_from: CacheFrom
     tags: Tags
     dependencies: Dependencies
     workdir: WorkDir
@@ -99,6 +110,7 @@ class Docker(Target):
         WorkDir,
         Tags,
         Command,
+        CacheFrom,
     )
 
 

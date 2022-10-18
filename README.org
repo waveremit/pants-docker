@@ -51,7 +51,7 @@ the DockerComponent will be copied into the image and the =commands=
 will be executed in the generated DockerFile.
 * ChangeLog
 * 1.1.2
-+ Add support for cache_from option to configure remote caches via `docker build --cache-from`
++ Add support for cache_from field to configure remote caches via `docker build --cache-from`
 * 1.1.1
 + Fix too strict python interpreter version to allow any python version 3.8 or greater
 * 1.1.0
