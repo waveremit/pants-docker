@@ -39,4 +39,5 @@ docker(
         "//:test_docker_reqs#gunicorn",
         "//:test_docker_reqs#gevent",
     ],
+    buildkit_inline_cache=True,
 )

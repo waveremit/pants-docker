@@ -91,18 +91,17 @@ def _build_tag_argument_list(
     return list(tags)
 
 
-def _build_cache_argument_list(cache_from: str) -> List[str]:
-    """Support the cache_from field by generating Docker CLI args for
+def _build_cache_argument_list(
+    cache_from: Optional[str], buildkit_inline_cache: bool
+) -> List[str]:
+    """Support cache-related fields by generating Docker CLI args for
     caching."""
-    # Create a cache manifest for the new image in addition to setting
-    # the location of the cache image, so that this image can also be used
-    # for caching in the future
-    return [
-        "--build-arg",
-        "BUILDKIT_INLINE_CACHE=1",
-        "--cache-from",
-        cache_from,
-    ]
+    arg_list = []
+    if buildkit_inline_cache:
+        arg_list += ["--build-arg", "BUILDKIT_INLINE_CACHE=1"]
+    if cache_from:
+        arg_list += ["--cache-from", cache_from]
+    return arg_list
 
 
 def _create_dockerfile(
@@ -243,7 +242,9 @@ async def package_into_image(
     # create the image
     # We need to enable BuildKit if we plan to read and write to a remote cache
     cli_command = (
-        ["buildx", "build"] if field_set.cache_from.value else ["build"]
+        ["buildx", "build"]
+        if field_set.cache_from.value or field_set.buildkit_inline_cache.value
+        else ["build"]
     )
     process_args = [process_path] + cli_command
     process_args.extend(tag_arguments)
@@ -251,8 +252,10 @@ async def package_into_image(
     if docker.options.report_progress:
         process_args.append("--progress")
         process_args.append("plain")
-    if field_set.cache_from.value:
-        process_args += _build_cache_argument_list(field_set.cache_from.value)
+    process_args += _build_cache_argument_list(
+        field_set.cache_from.value, field_set.buildkit_inline_cache.value
+    )
+    logger.info(f"Build command: {' '.join(process_args)}")
     process_result = await Get(
         ProcessResult,
         Process(

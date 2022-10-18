@@ -43,6 +43,24 @@ the generated imaage.
 See =$ pants help docker= for information on possible values for the
 docker target.
 
+* Using external layer cache sources
+Images built with this plugin can be configured for
+[[https://docs.docker.com/engine/reference/commandline/build/#specifying-external-cache-sources][external layer cache sources]]
+via the =build_cache= and =buildkit_inline_cache= fields on the
+=docker= target. Note that both of these fields require
+[[https://docs.docker.com/develop/develop-images/build_enhancements/][BuildKit]]
+to be installed.
+
+To enable writing inline layer caches for an image, set the field
+=buildkit_inline_cache=True= on the target. If you would like to use
+the built image as an external cache, tag it after packaging and push
+it to a remote repository using =docker tag= and =docker push=.
+
+To enable reading inline layer caches for an image, including from
+external cache sources, set the field =build_cache=<your-image-cache>=
+on the target.
+
+* Developing plugins
 To add support for more targets in subsequent plugins (i.e. to
 plug-into this plugin) add a rule mapping your Target/FieldSet to a
 DockerComponent dataclass. Then add a
