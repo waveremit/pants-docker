@@ -217,7 +217,8 @@ async def package_into_image(
     # create docker build context of all merged files & fetch docker
     # connection enviornment variables
     # and the location of the docker process
-    search_path = ["/bin", "/usr/bin", "/usr/local/bin", "$HOME/"]
+    path_env = await Get(Environment, EnvironmentRequest(["PATH"]))
+    search_path = path_env.get("PATH", "").split(":")
     docker_context, docker_env, docker_paths = await MultiGet(
         Get(Digest, MergeDigests([dockerfile, application_digest])),
         Get(Environment, EnvironmentRequest(utils.DOCKER_ENV_VARS)),
@@ -229,6 +230,8 @@ async def package_into_image(
             ),
         ),
     )
+    docker_env_dict = dict(docker_env)
+    docker_env_dict["PATH"] = path_env.get("PATH")
     if not docker_paths.first_path:
         raise ValueError(
             "Unable to locate Docker binary on paths: %s", search_path
@@ -259,7 +262,7 @@ async def package_into_image(
     process_result = await Get(
         ProcessResult,
         Process(
-            env=docker_env,
+            env=docker_env_dict,
             argv=process_args,
             input_digest=docker_context,
             description=f"Creating Docker Image from {target_name}",
