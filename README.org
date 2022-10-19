@@ -58,7 +58,11 @@ it to a remote repository using =docker tag= and =docker push=.
 
 To enable reading inline layer caches for an image, including from
 external cache sources, set the field =build_cache=<your-image-cache>=
-on the target.
+on the target. If you're reading a cache from a private registry, you
+will also have to pass your Docker config file into the pants process
+so that pants knows how to authenticate your cache pull request; the
+easiest way to do this is simply to set the =DOCKER_CONFIG= environment
+variable for the pants process, e.g. =DOCKER_CONFIG="$HOME/.docker" ./pants package ...=.
 
 * Developing plugins
 To add support for more targets in subsequent plugins (i.e. to
