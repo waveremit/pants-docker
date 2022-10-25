@@ -40,4 +40,5 @@ docker(
         "//:test_docker_reqs#gevent",
     ],
     buildkit_inline_cache=True,
+    multiline_pip_install=False,
 )

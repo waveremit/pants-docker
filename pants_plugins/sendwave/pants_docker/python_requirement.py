@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional, Tuple
 
 from pants.backend.python.subsystems.repos import PythonRepos
 from pants.backend.python.subsystems.setup import PythonSetup
@@ -15,6 +15,7 @@ from sendwave.pants_docker.docker_component import (
     DockerComponent,
     DockerComponentFieldSet,
 )
+from sendwave.pants_docker.subsystem import Docker
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +68,12 @@ async def create_virtual_env(
 @dataclass(frozen=True)
 class PythonRequirementsFS(FieldSet):
     required_fields = (PythonRequirementsField,)
-    requirements: PythonRequirementsField
+    requirements: Tuple[PythonRequirementsField]
 
 
 @rule
 async def get_requirements(
-    field_set: PythonRequirementsFS, setup: PythonSetup, repos: PythonRepos
+    field_set: PythonRequirementsFS, setup: PythonSetup, repos: PythonRepos, docker: Docker
 ) -> DockerComponent:
     assert not setup.enable_resolves, "Pants lockfiles not yet supported"
     if repos.repos:
@@ -83,7 +84,7 @@ async def get_requirements(
         links_args = ""
     num_indices = len(repos.indexes)
     if num_indices >= 1:
-        index_args = f"--index-url {repos.indexes[0]} "
+        index_args = f"--index-url {repos.indexes[0]}"
     if num_indices > 1:
         index_args = index_args + " ".join(
             [f"--extra-index-url {url}" for url in repos.indexes[1:]]
@@ -94,12 +95,18 @@ async def get_requirements(
     if setup.requirement_constraints:
         constraint_arg = f"--constraint {setup.requirement_constraints}"
 
-    commands = tuple(
-        "RUN python -m pip install {} {} {} {}\n".format(
-            index_args, links_args, constraint_arg, lib
+    if docker.options.multiline_pip_install:
+        commands = (
+            f"RUN python -m pip install {index_args} {links_args} {constraint_arg} " +
+            " ".join(str(lib) for lib in field_set.requirements.value) + "\n"
         )
-        for lib in field_set.requirements.value
-    )
+    else:
+        commands = tuple(
+            "RUN python -m pip install {} {} {} {}\n".format(
+                index_args, links_args, constraint_arg, lib
+            )
+            for lib in field_set.requirements.value
+        )
     return DockerComponent(
         commands=commands,
         sources=None,

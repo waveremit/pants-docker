@@ -78,6 +78,13 @@ class BuildkitInlineCache(BoolField):
     )
 
 
+class MultilinePipInstall(BoolField):
+    alias = "multiline_pip_install"
+    required = False
+    default = False
+    help = "If true: the plugin will `pip install` each requirement on its own line"
+
+
 class Tags(StringSequenceField):
     alias = "tags"
     default = []
@@ -103,6 +110,7 @@ class DockerPackageFieldSet(pants.core.goals.package.PackageFieldSet):
     registry: Registry
     cache_from: CacheFrom
     buildkit_inline_cache: BuildkitInlineCache
+    multiline_pip_install: MultilinePipInstall
     tags: Tags
     dependencies: Dependencies
     workdir: WorkDir
@@ -124,6 +132,7 @@ class Docker(Target):
         Command,
         CacheFrom,
         BuildkitInlineCache,
+        MultilinePipInstall,
     )
 
 
