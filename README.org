@@ -74,6 +74,8 @@ will be executed in the generated DockerFile.
 * ChangeLog
 * 1.1.2
 + Add support for cache_from field to configure remote caches via `docker build --cache-from`
++ Add support for buildkit_inline_cache field to set `--build-arg BUILDKIT_INLINE_CACHE=1`
++ Add support for multiline_pip_install field to `RUN pip install` on multiple lines (one per dependency) or one line for all dependencies
 * 1.1.1
 + Fix too strict python interpreter version to allow any python version 3.8 or greater
 * 1.1.0
