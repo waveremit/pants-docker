@@ -28,13 +28,12 @@ import logging
 from io import StringIO
 from typing import Iterable, List, Optional
 
-from pants.backend.python.target_types import PythonRequirementsField
 import sendwave.pants_docker.utils as utils
-from pants_plugins.sendwave.pants_docker.python_requirement import (
-    PythonRequirementsFS,
-)
 from pants.backend.python.subsystems.setup import PythonSetup
-from pants.backend.python.target_types import PythonRequirementTarget
+from pants.backend.python.target_types import (
+    PythonRequirementsField,
+    PythonRequirementTarget,
+)
 from pants.core.goals.package import BuiltPackage, BuiltPackageArtifact
 from pants.core.util_rules.system_binaries import BinaryPathRequest, BinaryPaths
 from pants.engine.environment import Environment, EnvironmentRequest
@@ -54,7 +53,11 @@ from sendwave.pants_docker.docker_component import (
     DockerComponent,
     DockerComponentFieldSet,
 )
-from sendwave.pants_docker.python_requirement import VirtualEnvRequest
+from sendwave.pants_docker.python_requirement import (
+    MultilinePythonRequirementsFS,
+    PythonRequirementsFS,
+    VirtualEnvRequest,
+)
 from sendwave.pants_docker.subsystem import Docker
 from sendwave.pants_docker.target import DockerPackageFieldSet
 
@@ -150,46 +153,57 @@ async def package_into_image(
     docstring for more information)
     """
     target_name = field_set.address.target_name
+    logger.debug("Building Target %s", target_name)
     transitive_targets = await Get(
         TransitiveTargets, TransitiveTargetsRequest([field_set.address])
     )
 
+    # Start by generating commands for the Python dependencies
     pip_requirement_targets = []
+    component_list = []
+    created_virtual_env = False
     for target in transitive_targets.dependencies:
         if isinstance(target, PythonRequirementTarget):
+            if not created_virtual_env:
+                # if there are any third party python dependencies
+                # create & activate a virtual env in the image, this
+                # will copy in a constraints file (which will be used
+                # when installing any 3rd-party dependencies)
+                component_list.append(
+                    Get(
+                        DockerComponent,
+                        VirtualEnvRequest(
+                            setup.enable_resolves, setup.requirement_constraints
+                        ),
+                    )
+                )
+                # we only want one virtual env per image
+                created_virtual_env = True
             for value in target.get(PythonRequirementsField).value:
                 pip_requirement_targets.append(value)
 
-    pip_requirements_component = await Get(
-        DockerComponent,
-        DockerComponentFieldSet,
-        PythonRequirementsFS(requirements=tuple(pip_requirement_targets)),
-    )
+    if pip_requirement_targets:
+        if field_set.multiline_pip_install.value:
+            pip_requirements_component = Get(
+                DockerComponent,
+                MultilinePythonRequirementsFS(
+                    requirements=tuple(pip_requirement_targets)
+                ),
+            )
+        else:
+            pip_requirements_component = Get(
+                DockerComponent,
+                PythonRequirementsFS(
+                    requirements=tuple(pip_requirement_targets)
+                ),
+            )
+        component_list.append(pip_requirements_component)
 
-    component_list = [pip_requirements_component]
-    created_virtual_env = False
-    logger.debug("Building Target %s", target_name)
     for field_set_type in union_membership[DockerComponentFieldSet]:
         for target in transitive_targets.dependencies:
-            if (
-                isinstance(target, PythonRequirementTarget)
-            ):
-                if not created_virtual_env:
-                    # if there are any third party python dependencies
-                    # create & activate a virtual env in the image, this
-                    # will copy in a constraints file (which will be used
-                    # when installing any 3rd-party dependencies)
-                    component_list.append(
-                        Get(
-                            DockerComponent,
-                            VirtualEnvRequest(
-                                setup.enable_resolves, setup.requirement_constraints
-                            ),
-                        )
-                    )
-                    # we only want one virtual env per image
-                    created_virtual_env = True
-            else:
+            # We already generated commands for the Python dependencies,
+            # so skip them
+            if not (isinstance(target, PythonRequirementTarget)):
                 if field_set_type.is_applicable(target):
                     logger.debug(
                         "Dependent Target %s applies to as component %s",

@@ -5,17 +5,12 @@ from typing import Optional, Tuple
 from pants.backend.python.subsystems.repos import PythonRepos
 from pants.backend.python.subsystems.setup import PythonSetup
 from pants.backend.python.target_types import PythonRequirementsField
-from pants.core.util_rules.system_binaries import BinaryPathRequest, BinaryPaths
 from pants.engine.fs import Digest, GlobMatchErrorBehavior, PathGlobs
 from pants.engine.rules import Get, collect_rules, rule
-from pants.engine.target import FieldSet
-from pants.engine.unions import UnionRule
-from pants.option.global_options import BootstrapOptions
 from sendwave.pants_docker.docker_component import (
     DockerComponent,
     DockerComponentFieldSet,
 )
-from sendwave.pants_docker.subsystem import Docker
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +60,17 @@ async def create_virtual_env(
     )
 
 
-@dataclass(frozen=True)
-class PythonRequirementsFS:
-    requirements: Tuple[PythonRequirementsField]
+@dataclass
+class PipInstallArgs:
+    links_args: str
+    index_args: str
+    constraint_arg: str
 
 
-@rule
-async def get_requirements(
-    field_set: PythonRequirementsFS, setup: PythonSetup, repos: PythonRepos, docker: Docker
-) -> DockerComponent:
+def _get_install_args(
+    setup: PythonSetup,
+    repos: PythonRepos,
+) -> PipInstallArgs:
     assert not setup.enable_resolves, "Pants lockfiles not yet supported"
     if repos.repos:
         links_args = " ".join(
@@ -93,19 +90,57 @@ async def get_requirements(
     constraint_arg = ""
     if setup.requirement_constraints:
         constraint_arg = f"--constraint {setup.requirement_constraints}"
+    return PipInstallArgs(
+        links_args=links_args,
+        index_args=index_args,
+        constraint_arg=constraint_arg,
+    )
 
-    if docker.options.multiline_pip_install:
-        commands = (
-            f"RUN python -m pip install {index_args} {links_args} {constraint_arg} " +
-            " ".join(str(lib) for lib in field_set.requirements.value) + "\n"
+
+@dataclass(frozen=True)
+class PythonRequirementsFS:
+    requirements: Tuple[PythonRequirementsField]
+
+
+@rule
+async def get_requirements(
+    field_set: PythonRequirementsFS, setup: PythonSetup, repos: PythonRepos
+) -> DockerComponent:
+    install_args = _get_install_args(setup, repos)
+    commands = (
+        f"RUN python -m pip install {install_args.index_args} "
+        + f"{install_args.links_args} {install_args.constraint_arg} "
+        + " ".join(str(lib) for lib in field_set.requirements)
+        + "\n"
+    )
+    return DockerComponent(
+        commands=commands,
+        sources=None,
+    )
+
+
+@dataclass(frozen=True)
+class MultilinePythonRequirementsFS:
+    requirements: Tuple[PythonRequirementsField]
+
+
+@rule
+def get_multiline_requirements(
+    field_set: MultilinePythonRequirementsFS,
+    setup: PythonSetup,
+    repos: PythonRepos,
+) -> DockerComponent:
+    """Version of get_requirements that supports multiline pip install."""
+    install_args = _get_install_args(setup, repos)
+    commands = tuple(
+        "RUN python -m pip install {} {} {} {}\n".format(
+            install_args.index_args,
+            install_args.links_args,
+            install_args.constraint_arg,
+            lib,
         )
-    else:
-        commands = tuple(
-            "RUN python -m pip install {} {} {} {}\n".format(
-                index_args, links_args, constraint_arg, lib
-            )
-            for lib in field_set.requirements.value
-        )
+        for lib in field_set.requirements
+    )
     return DockerComponent(
         commands=commands,
         sources=None,
@@ -113,7 +148,4 @@ async def get_requirements(
 
 
 def rules():
-    return [
-        UnionRule(DockerComponentFieldSet, PythonRequirementsFS),
-        *collect_rules(),
-    ]
+    return [*collect_rules()]
