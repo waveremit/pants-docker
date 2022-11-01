@@ -66,8 +66,7 @@ async def create_virtual_env(
 
 
 @dataclass(frozen=True)
-class PythonRequirementsFS(FieldSet):
-    required_fields = (PythonRequirementsField,)
+class PythonRequirementsFS:
     requirements: Tuple[PythonRequirementsField]
 
 

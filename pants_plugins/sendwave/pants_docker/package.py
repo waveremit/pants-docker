@@ -162,6 +162,7 @@ async def package_into_image(
 
     pip_requirements_component = await Get(
         DockerComponent,
+        DockerComponentFieldSet,
         PythonRequirementsFS(requirements=tuple(pip_requirement_targets)),
     )
 
