@@ -185,9 +185,7 @@ async def package_into_image(
         component_list.append(
             Get(
                 DockerComponent,
-                PythonRequirements(
-                    requirements=tuple(pip_requirement_targets)
-                ),
+                PythonRequirements(requirements=tuple(pip_requirement_targets)),
             )
         )
 

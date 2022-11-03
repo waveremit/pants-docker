@@ -68,7 +68,10 @@ class PythonRequirements:
 
 @rule
 async def get_requirements(
-    field_set: PythonRequirements, setup: PythonSetup, repos: PythonRepos, docker: Docker,
+    field_set: PythonRequirements,
+    setup: PythonSetup,
+    repos: PythonRepos,
+    docker: Docker,
 ) -> DockerComponent:
     install_args = _get_install_args(setup, repos)
     if docker.options.multiline_pip_install:
