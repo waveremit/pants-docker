@@ -54,8 +54,8 @@ from sendwave.pants_docker.docker_component import (
     DockerComponentFieldSet,
 )
 from sendwave.pants_docker.python_requirement import (
-    MultilinePythonRequirementsFS,
-    PythonRequirementsFS,
+    MultilinePythonRequirements,
+    PythonRequirements,
     VirtualEnvRequest,
 )
 from sendwave.pants_docker.subsystem import Docker
@@ -186,14 +186,14 @@ async def package_into_image(
         if field_set.multiline_pip_install.value:
             pip_requirements_component = Get(
                 DockerComponent,
-                MultilinePythonRequirementsFS(
+                MultilinePythonRequirements(
                     requirements=tuple(pip_requirement_targets)
                 ),
             )
         else:
             pip_requirements_component = Get(
                 DockerComponent,
-                PythonRequirementsFS(
+                PythonRequirements(
                     requirements=tuple(pip_requirement_targets)
                 ),
             )

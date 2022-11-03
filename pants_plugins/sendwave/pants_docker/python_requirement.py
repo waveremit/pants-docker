@@ -98,13 +98,13 @@ def _get_install_args(
 
 
 @dataclass(frozen=True)
-class PythonRequirementsFS:
+class PythonRequirements:
     requirements: Tuple[PythonRequirementsField]
 
 
 @rule
 async def get_requirements(
-    field_set: PythonRequirementsFS, setup: PythonSetup, repos: PythonRepos
+    field_set: PythonRequirements, setup: PythonSetup, repos: PythonRepos
 ) -> DockerComponent:
     install_args = _get_install_args(setup, repos)
     commands = (
@@ -120,13 +120,13 @@ async def get_requirements(
 
 
 @dataclass(frozen=True)
-class MultilinePythonRequirementsFS:
+class MultilinePythonRequirements:
     requirements: Tuple[PythonRequirementsField]
 
 
 @rule
 def get_multiline_requirements(
-    field_set: MultilinePythonRequirementsFS,
+    field_set: MultilinePythonRequirements,
     setup: PythonSetup,
     repos: PythonRepos,
 ) -> DockerComponent:
