@@ -11,6 +11,7 @@ from sendwave.pants_docker.docker_component import (
     DockerComponent,
     DockerComponentFieldSet,
 )
+from sendwave.pants_docker.subsystem import Docker
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,39 @@ async def create_virtual_env(
     )
 
 
+@dataclass(frozen=True)
+class PythonRequirements:
+    requirements: Tuple[PythonRequirementsField]
+
+
+@rule
+async def get_requirements(
+    field_set: PythonRequirements, setup: PythonSetup, repos: PythonRepos, docker: Docker,
+) -> DockerComponent:
+    install_args = _get_install_args(setup, repos)
+    if docker.options.multiline_pip_install:
+        commands = tuple(
+            "RUN python -m pip install {} {} {} {}\n".format(
+                install_args.index_args,
+                install_args.links_args,
+                install_args.constraint_arg,
+                lib,
+            )
+            for lib in field_set.requirements
+        )
+    else:
+        commands = (
+            f"RUN python -m pip install {install_args.index_args} "
+            + f"{install_args.links_args} {install_args.constraint_arg} "
+            + " ".join(str(lib) for lib in field_set.requirements)
+            + "\n"
+        )
+    return DockerComponent(
+        commands=commands,
+        sources=None,
+    )
+
+
 @dataclass
 class PipInstallArgs:
     links_args: str
@@ -94,56 +128,6 @@ def _get_install_args(
         links_args=links_args,
         index_args=index_args,
         constraint_arg=constraint_arg,
-    )
-
-
-@dataclass(frozen=True)
-class PythonRequirements:
-    requirements: Tuple[PythonRequirementsField]
-
-
-@rule
-async def get_requirements(
-    field_set: PythonRequirements, setup: PythonSetup, repos: PythonRepos
-) -> DockerComponent:
-    install_args = _get_install_args(setup, repos)
-    commands = (
-        f"RUN python -m pip install {install_args.index_args} "
-        + f"{install_args.links_args} {install_args.constraint_arg} "
-        + " ".join(str(lib) for lib in field_set.requirements)
-        + "\n"
-    )
-    return DockerComponent(
-        commands=commands,
-        sources=None,
-    )
-
-
-@dataclass(frozen=True)
-class MultilinePythonRequirements:
-    requirements: Tuple[PythonRequirementsField]
-
-
-@rule
-def get_multiline_requirements(
-    field_set: MultilinePythonRequirements,
-    setup: PythonSetup,
-    repos: PythonRepos,
-) -> DockerComponent:
-    """Version of get_requirements that supports multiline pip install."""
-    install_args = _get_install_args(setup, repos)
-    commands = tuple(
-        "RUN python -m pip install {} {} {} {}\n".format(
-            install_args.index_args,
-            install_args.links_args,
-            install_args.constraint_arg,
-            lib,
-        )
-        for lib in field_set.requirements
-    )
-    return DockerComponent(
-        commands=commands,
-        sources=None,
     )
 
 
